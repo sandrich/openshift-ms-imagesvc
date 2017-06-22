@@ -63,7 +63,7 @@ let uploadImage = (req, res, next) => {
                     resp.pipe(res)
                     next()
                 } else {
-                    resp.pipe(rq.put(process.env.GCSIMAGEUPLOAD_APPLICATION_DOMAIN.concat("/upload"), (err, resp, body) => {
+                    resp.pipe(rq.put(process.env.GCSIMAGEUPLOAD_APPLICATION_DOMAIN.concat("/upload?fileExtension=.png"), (err, resp, body) => {
                         if (err) {
                             res.json(500, {status:"error", msg: "Internal error: Cannot contact gcsImageUpload service"})
                             next()
@@ -71,8 +71,8 @@ let uploadImage = (req, res, next) => {
 
                         if (resp.statusCode && resp.statusCode == 200) {
                             let b = JSON.parse(body)
-                            if (b && b.imageName)
-                                res.json(200, {status: "ok", imageName: b.imageName})
+                            if (b && b.fileName)
+                                res.json(200, {status: "ok", fileName: b.fileName})
                             else
                                 res.json(500, {status:"error", msg: body})
 
