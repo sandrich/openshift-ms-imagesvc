@@ -1,15 +1,16 @@
 'use strict';
 
-if (!process.env.IMAGINARY_APPLICATION_DOMAIN) {
+if (!process.env.IMAGINARY_APPLICATION_DOMAIN || !process.env.GCSIMAGEUPLOAD_APPLICATION_DOMAIN) {
     console.log("Please set the following ENV variables:");
-    console.log("IMAGINARY_APPLICATION_DOMAIN");
+    console.log("IMAGINARY_APPLICATION_DOMAIN, GCSIMAGEUPLOAD_APPLICATION_DOMAIN");
     process.exit(1);
 }
 
 let restify = require('restify')
     ,rq = require('request')
-    ,fs = require('fs')
+    ,httprq = require('http').request
     ,service = require('node-health-service').Service
+    ,fs = require('fs')
 
 let maxBodySize = process.env.MAX_BODY_SIZE || 0
 
@@ -17,7 +18,11 @@ let healthConfig = {
 	imaginary:{
 		probe:"ping",
 		url:process.env.IMAGINARY_APPLICATION_DOMAIN.concat("/health")
-	}
+	},
+    gcsImageUpload: {
+        probe: "ping",
+        url:process.env.GCSIMAGEUPLOAD_APPLICATION_DOMAIN.concat("/healthz")
+    }
 }
 
 const server = restify.createServer({
@@ -30,35 +35,47 @@ server.use(restify.bodyParser({
     mapParams: true,
     mapFiles: true,
     overrideParams: false
- }));
+}));
+
+const imaginaryClient = restify.createClient({
+     url: process.env.IMAGINARY_APPLICATION_DOMAIN
+})
 
 let processImage = (req, callback) => {
-    let proxy_url = process.env.IMAGINARY_APPLICATION_DOMAIN.concat(req.url);
+    let proxy_url = process.env.IMAGINARY_APPLICATION_DOMAIN;
 
-    return rq({
-        uri: proxy_url,
-        method: req.route.method,
-        body: req.params.file
-    }, callback)
+    return imaginaryClient.post(req.url,callback)
 }
 
 let uploadImage = (req, res, next) => {
     if (req.params && req.params.file) {
-        processImage(req, (err, resp, body) => {
+
+        processImage(req, (err, postReq) => {
             if (err) {
                 res.json(500, {status:"error", msg: "Internal error: Cannot contact Imaginary service"})
                 next()
-            } else {
+            }
+
+            postReq.on('result', (err, resp) => {
                 let contentType = resp.headers['content-type']
 
                 if (contentType == "application/json") {
-                    res.json(body)
+                    resp.pipe(res)
                     next()
                 } else {
-                    console.log("TODO Upload")
-                    next()
+                    resp.pipe(rq.put(process.env.GCSIMAGEUPLOAD_APPLICATION_DOMAIN.concat("/upload"), (err, resp, body) => {
+                        if (err) {
+                            res.json(500, {status:"error", msg: "Internal error: Cannot contact gcsImageUpload service"})
+                            next()
+                        }
+
+                        res.json(200, {status:"error", msg: body})
+                    }))
                 }
-            }
+            })
+
+            postReq.write(req.params.file)
+            postReq.end()
         })
     }
 }
