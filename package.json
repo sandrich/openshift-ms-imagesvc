@@ -1,0 +1,24 @@
+{
+  "homepage": "https://github.com/un1x86/openshift-ms-imagesvc",
+  "license": "MIT",
+  "main": "app.js",
+  "maintainers": [
+    {
+      "name": "un1x86",
+      "email": "mail@chrissandrini.ch"
+    }
+  ],
+  "name": "openshift-ms-imagesvc",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:un1x86/openshift-ms-imagesvc.git"
+  },
+  "dependencies": {
+    "node-health-service": "git+https://github.com/un1x86/nodejs-nhs.git",
+    "request": "^2.81.0",
+    "restify": "^4.3.0"
+  }
+}
