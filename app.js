@@ -71,13 +71,12 @@ let uploadImage = (req, res, next) => {
 
                         if (resp.statusCode && resp.statusCode == 200) {
                             let b = JSON.parse(body)
-                            console.log(b)
-                            if (b && b.imageName) {
-                                res.json(200, {status: "ok", msg: b.imageName})
-                                next()
-                            } else {
-                                res.json(200, {status:"ok", msg: body})
-                            }
+                            if (b && b.imageName)
+                                res.json(200, {status: "ok", imageName: b.imageName})
+                            else
+                                res.json(500, {status:"error", msg: body})
+
+                            next()
                         }
 
 
