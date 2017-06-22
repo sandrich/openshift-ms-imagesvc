@@ -69,7 +69,18 @@ let uploadImage = (req, res, next) => {
                             next()
                         }
 
-                        res.json(200, {status:"error", msg: body})
+                        if (resp.statusCode && resp.statusCode == 200) {
+                            let b = JSON.parse(body)
+                            console.log(b)
+                            if (b && b.imageName) {
+                                res.json(200, {status: "ok", msg: b.imageName})
+                                next()
+                            } else {
+                                res.json(200, {status:"ok", msg: body})
+                            }
+                        }
+
+
                     }))
                 }
             })
