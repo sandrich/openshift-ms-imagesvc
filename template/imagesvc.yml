@@ -1,0 +1,518 @@
+apiVersion: v1
+kind: Template
+metadata:
+  creationTimestamp: null
+  name: imagesvc
+objects:
+#####
+# BuildConfig Section
+#####
+
+# gcsimageupload
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      app: gcsimageupload
+      microservice: imagesvc
+    name: gcsimageupload
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: gcsimageupload:latest
+    source:
+      git:
+        ref: master
+        uri: https://github.com/un1x86/openshift-ms-gcsFileUpload.git
+      type: Git
+    strategy:
+      sourceStrategy:
+        env:
+        - name: GCS_PROJECT
+          value: ${GCS_PROJECT_ID}
+        - name: GCS_KEY_FILENAME
+          value: ${GCS_KEY_FILENAME}
+        - name: GCS_BUCKET
+          value: ${GCS_BUCKET}
+        from:
+          kind: ImageStreamTag
+          name: nodejs:4
+          namespace: openshift
+      type: Source
+    triggers:
+     - github:
+         secret: f9928132855c5a30
+       type: GitHub
+     - generic:
+         secret: 77ece14f810caa3f
+       type: Generic
+     - imageChange: {}
+       type: ImageChange
+     - type: ConfigChange
+
+# imagesvc
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      app: imagesvc
+      microservice: imagesvc
+    name: imagesvc
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: imagesvc:latest
+    source:
+      git:
+        ref: master
+        uri: https://github.com/un1x86/openshift-ms-imagesvc.git
+      type: Git
+    strategy:
+      sourceStrategy:
+        env:
+        - name: IMAGINARY_APPLICATION_DOMAIN
+          value: http://imaginary:9000
+        - name: GCSIMAGEUPLOAD_APPLICATION_DOMAIN
+          value: http://gcsimageupload:8080
+        from:
+          kind: ImageStreamTag
+          name: nodejs:4
+          namespace: openshift
+      type: Source
+    triggers:
+     - github:
+         secret: f9928132855c5a30
+       type: GitHub
+     - generic:
+         secret: 77ece14f810caa3f
+       type: Generic
+     - imageChange: {}
+       type: ImageChange
+     - type: ConfigChange
+
+#####
+# ImageStream Section
+#####
+
+# gcsimageupload
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftWebConsole
+    creationTimestamp: null
+    generation: 1
+    labels:
+      app: gcsimageupload
+      microservice: imagesvc
+    name: gcsimageupload
+  spec:
+    tags:
+    - annotations: null
+      from:
+        kind: DockerImage
+        name: gcsimageupload:latest
+      generation: null
+      importPolicy: {}
+      name: latest
+      referencePolicy:
+        type: ""
+  status:
+    dockerImageRepository: ""
+
+# imagesvc
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftWebConsole
+    creationTimestamp: null
+    generation: 1
+    labels:
+      app: imagesvc
+      microservice: imagesvc
+    name: imagesvc
+  spec:
+    tags:
+    - annotations: null
+      from:
+        kind: DockerImage
+        name: imagesvc:latest
+      generation: null
+      importPolicy: {}
+      name: latest
+      referencePolicy:
+        type: ""
+  status:
+    dockerImageRepository: ""
+
+# imaginary
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    labels:
+      app: imaginary
+      microservice: imagesvc
+    name: imaginary
+  spec:
+    tags:
+    - annotations: null
+      from:
+        kind: DockerImage
+        name: imaginary:latest
+      generation: null
+      importPolicy: {}
+      name: latest
+      referencePolicy:
+        type: ""
+  status:
+    dockerImageRepository: ""
+
+#####
+# DeploymentConfig Section
+#####
+
+# gcsimageupload
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftWebConsole
+    creationTimestamp: null
+    generation: 1
+    labels:
+      app: gcsimageupload
+      microservice: imagesvc
+    name: gcsimageupload
+  spec:
+    replicas: 1
+    selector:
+      deploymentconfig: gcsimageupload
+    strategy:
+      activeDeadlineSeconds: 21600
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: gcsimageupload
+          deploymentconfig: gcsimageupload
+          microservice: imagesvc
+      spec:
+        containers:
+        - image: gcsimageupload
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 10
+          name: gcsimageupload
+          ports:
+          - containerPort: 8080
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          volumeMounts:
+          - mountPath: /secret
+            name: gcsimageupload-secret
+            readOnly: true
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: gcsimageupload-secret
+          secret:
+            defaultMode: 420
+            secretName: gcsimageupload-secret
+    test: false
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - gcsimageupload
+        from:
+          kind: ImageStreamTag
+          name: gcsimageupload:latest
+      type: ImageChange
+    - type: ConfigChange
+
+# imagesvc
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftWebConsole
+    creationTimestamp: null
+    generation: 1
+    labels:
+      app: imagesvc
+      microservice: imagesvc
+    name: imagesvc
+  spec:
+    replicas: 1
+    selector:
+      deploymentconfig: imagesvc
+    strategy:
+      activeDeadlineSeconds: 21600
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: imagesvc
+          deploymentconfig: imagesvc
+          microservice: imagesvc
+      spec:
+        containers:
+        - image: imagesvc
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 10
+          name: imagesvc
+          ports:
+          - containerPort: 8080
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 10
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+    test: false
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - imagesvc
+        from:
+          kind: ImageStreamTag
+          name: imagesvc:latest
+      type: ImageChange
+    - type: ConfigChange
+
+# imaginary
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftWebConsole
+    creationTimestamp: null
+    generation: 1
+    labels:
+      app: imaginary
+      microservice: imagesvc
+    name: imaginary
+  spec:
+    replicas: 1
+    selector:
+      app: imaginary
+      deploymentconfig: imaginary
+    strategy:
+      activeDeadlineSeconds: 21600
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        annotations:
+          openshift.io/generated-by: OpenShiftWebConsole
+        creationTimestamp: null
+        labels:
+          app: imaginary
+          deploymentconfig: imaginary
+          microservice: imagesvc
+      spec:
+        containers:
+        - image: h2non/imaginary
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 9000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: imaginary
+          ports:
+          - containerPort: 9000
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 9000
+              scheme: HTTP
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+    test: false
+    triggers:
+    - type: ConfigChange
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - imaginary
+        from:
+          kind: ImageStreamTag
+          name: imaginary:latest
+      type: ImageChange
+
+####
+# Service Section
+####
+
+# gcsimageupload
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftWebConsole
+    creationTimestamp: null
+    labels:
+      app: gcsimageupload
+      microservice: imagesvc
+    name: gcsimageupload
+  spec:
+    ports:
+    - name: 8080-tcp
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      deploymentconfig: gcsimageupload
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+
+# imagesvc
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftWebConsole
+      service.alpha.openshift.io/dependencies: '[{"name":"gcsimageupload","namespace":"","kind":"Service"},{"name":"imaginary","namespace":"","kind":"Service"}]'
+    creationTimestamp: null
+    labels:
+      app: imagesvc
+      microservice: imagesvc
+    name: imagesvc
+  spec:
+    ports:
+    - name: 8080-tcp
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      deploymentconfig: imagesvc
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+
+# imaginary
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftWebConsole
+    creationTimestamp: null
+    labels:
+      app: imaginary
+      microservice: imagesvc
+    name: imaginary
+  spec:
+    ports:
+    - name: 9000-tcp
+      port: 9000
+      protocol: TCP
+      targetPort: 9000
+    selector:
+      deploymentconfig: imaginary
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+
+####
+# Parameters Section
+####
+parameters:
+    - description: "GCS Project ID"
+      name: GCS_PROJECT_ID
+      value: ""
+      required: true
+    - description: "GCS Key Filename"
+      name: GCS_KEY_FILENAME
+      value: /secret/keyfile.json
+      required: true
+    - description: "GCS Bucket name"
+      name: GCS_BUCKET
+      value: ""
+      required: true
